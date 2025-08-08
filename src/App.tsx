@@ -135,22 +135,26 @@ const serviceQuestions: Question[] = services.map((service, idx) => ({
 export default function CaminhoneiroForm() {
   const [step, setStep] = useState(-1);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [followUps, setFollowUps] = useState<Record<number, string>>({});
+  const [followUps, setFollowUps] = useState<Record<number, string[]>>({}); // Alterado para array de strings
   const [followUpError, setFollowUpError] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   // Total de passos = perguntas + intro dos serviços + perguntas dos serviços
   const totalSteps = questions.length + 1 + serviceQuestions.length;
 
   function handleNext() {
     // Validação obrigatória de resposta em cada passo
-    // Se é a pergunta com followUp e resposta "Sim", validar o campo texto
+    // Se é a pergunta com followUp e resposta "Sim", validar se pelo menos um serviço foi selecionado
     if (
       step >= 0 &&
       step < questions.length &&
       questions[step].followUp &&
       answers[questions[step].id] === "Sim" &&
-      !followUps[questions[step].id]?.trim()
+      (!followUps[questions[step].id] ||
+        followUps[questions[step].id]?.length === 0)
     ) {
       setFollowUpError(true);
       return;
@@ -182,7 +186,8 @@ export default function CaminhoneiroForm() {
 
     // Se passou da última pergunta, ir para tela de obrigado
     if (step + 1 >= totalSteps) {
-      setStep(totalSteps);
+      submitSurvey();
+      // setStep(totalSteps);
     } else {
       setStep((prev) => prev + 1);
     }
@@ -200,13 +205,76 @@ export default function CaminhoneiroForm() {
     setAnswers((prev) => ({ ...prev, [id]: value }));
   }
 
-  function handleFollowUp(id: number, value: string) {
-    setFollowUps((prev) => ({ ...prev, [id]: value }));
+  function handleServiceToggle(questionId: number, service: string) {
+    setFollowUps((prev) => {
+      const currentServices = prev[questionId] || [];
+      const newServices = currentServices.includes(service)
+        ? currentServices.filter((s) => s !== service)
+        : [...currentServices, service];
+
+      return { ...prev, [questionId]: newServices };
+    });
     setFollowUpError(false);
   }
 
   function closeModal() {
     setShowModal(false);
+  }
+
+  async function submitSurvey() {
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      // Transformar os dados do estado para o formato esperado pelo backend
+      const surveyData = {
+        age: answers[1],
+        gender: answers[2],
+        experience: answers[3],
+        truckType: answers[4],
+        frequency: answers[5],
+        stopsPerDay: answers[6],
+        stopDuration: answers[7],
+        hasMissedServices: answers[8] === "Sim",
+        missedServices: answers[8] === "Sim" ? followUps[8] || [] : [],
+        safetyRating: answers[9],
+        cleanlinessRating: answers[10],
+        foodQualityRating: answers[11],
+        servicePreferences: services.map((service, idx) => ({
+          service,
+          importance: answers[1000 + idx],
+        })),
+      };
+
+      // Substitua a URL pela do seu backend em produção
+      const apiUrl =
+        "https://backend-questionario.vercel.app/api/survey/submit";
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(surveyData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao enviar pesquisa");
+      }
+
+      const data = await response.json();
+      console.log("Resposta enviada com sucesso:", data);
+      setStep(totalSteps); // Avança para a tela de obrigado
+    } catch (error: any) {
+      console.error("Erro ao enviar pesquisa:", error);
+      setSubmitError(
+        error.message ||
+          "Ocorreu um erro ao enviar suas respostas. Por favor, tente novamente."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   // Tela inicial antes da pesquisa começar
@@ -342,23 +410,44 @@ export default function CaminhoneiroForm() {
 
               {currentQuestion.followUp &&
                 answers[currentQuestion.id] === "Sim" && (
-                  <div>
-                    <textarea
-                      className={`mt-4 w-full border rounded-lg p-3 text-lg resize-none
-                    ${
-                      followUpError ? "border-red-500" : "border-gray-300"
-                    } focus:outline-none focus:ring-2 focus:ring-blue-400 transition
-                  `}
-                      placeholder={currentQuestion.followUp}
-                      value={followUps[currentQuestion.id] || ""}
-                      onChange={(e) =>
-                        handleFollowUp(currentQuestion.id, e.target.value)
-                      }
-                      rows={3}
-                    />
+                  <div className="mt-4">
+                    <p className="text-lg font-medium mb-3">
+                      {currentQuestion.followUp}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {services.map((service, idx) => (
+                        <label
+                          key={idx}
+                          className={`border rounded-xl px-5 py-3 flex items-center space-x-4 cursor-pointer
+                            hover:bg-blue-50
+                            ${
+                              followUps[currentQuestion.id]?.includes(service)
+                                ? "border-blue-600 bg-blue-100"
+                                : "border-gray-300 bg-white"
+                            }
+                          `}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={
+                              followUps[currentQuestion.id]?.includes(
+                                service
+                              ) || false
+                            }
+                            onChange={() =>
+                              handleServiceToggle(currentQuestion.id, service)
+                            }
+                            className="accent-blue-600 w-5 h-5"
+                          />
+                          <span className="text-lg font-medium text-gray-900">
+                            {service}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                     {followUpError && (
-                      <p className="text-sm text-red-600 mt-1 font-semibold">
-                        Este campo é obrigatório.
+                      <p className="text-sm text-red-600 mt-3 font-semibold">
+                        Por favor, selecione pelo menos um serviço.
                       </p>
                     )}
                   </div>
@@ -486,11 +575,40 @@ export default function CaminhoneiroForm() {
               </button>
 
               <button
+                disabled={isSubmitting}
                 type="button"
                 onClick={handleNext}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition"
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 min-w-[120px]"
               >
-                {step + 1 === totalSteps ? "Finalizar" : "Próximo"}
+                {isSubmitting ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    {step + 1 === totalSteps ? "Enviando..." : "Carregando..."}
+                  </>
+                ) : step + 1 === totalSteps ? (
+                  "Finalizar"
+                ) : (
+                  "Próximo"
+                )}
               </button>
             </div>
           </div>
