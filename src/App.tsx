@@ -13,6 +13,7 @@ const services = [
   "Academia / Exercícios",
   "Wi-Fi gratuito",
   "Estacionamento seguro",
+  "Espaço para fazer comida",
 ];
 
 const preferences = [
@@ -50,17 +51,17 @@ const questions: Question[] = [
   {
     id: 3,
     question: "3. Tempo de experiência como caminhoneiro",
-    options: ["Menos de 1 ano", "1 a 5 anos", "6 a 10 anos", "Mais de 10 anos"],
+    options: ["Até 5 anos", "5 a 10 anos", "10 a 15 anos", "Mais de 15 anos"],
   },
   {
     id: 4,
-    question: "4. Tipo de caminhão que você dirige",
+    question: "4. Tipo de caminhão que você dirige atualmente",
     options: ["Truck", "Carreta", "Bitrem", "Outros"],
   },
   {
     id: 5,
     question:
-      "5. Com que frequência você trafega pela BR-251 ou trecho próximo a Grão Mogol?",
+      "5. Com que frequência você trafega pela BR-251 ou trecho próximo a Grão Mogol, Vale das cancelas e região?",
     options: [
       "Diariamente",
       "Semanalmente",
@@ -140,7 +141,7 @@ export default function CaminhoneiroForm() {
   const [showModal, setShowModal] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [_, setSubmitError] = useState("");
 
   // Total de passos = perguntas + intro dos serviços + perguntas dos serviços
   const totalSteps = questions.length + 1 + serviceQuestions.length;
